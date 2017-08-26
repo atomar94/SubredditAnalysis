@@ -12,30 +12,24 @@ from crawler import SubredditAnalysis
 from exceptions import *
 
 
-def login(username, password):
+def login(botname, user_agent):
+    """
+    Try to log in 3 times.
+
+    Return True on success.
+    """
     for i in range(0, 3):
 
             if myBot.login(botname="bot1",
                            user_agent="'my_bot by /u/atomar94"):
-                break
-
-        #except (InvalidUser, InvalidUserPass, RateLimitExceeded, APIException) as e:
-        #        myBot.add_msg(e)
-        #        logging.error(str(e) + "\n\n")
-        #        sys.exit(1)
-
-        #except (ConnectionResetError, HTTPError, timeout) as e:
-        #    myBot.add_msg(e)
-        #    logging.error(str(e) + "\n\n")
-        #    
-            if i == 2:
-                print("Failed to login.")
-                sys.exit(1)
+                return True
             
             else:
-                # wait a minute and try again
+                # wait and try again
                 sleep(5)
                 continue
+
+    return False
 
 
 def check_subreddits(subredditList):
@@ -263,14 +257,14 @@ def fetch_from_db(subreddit):
 
 def main():
     
-    # login credentials
-    username = myBot.config['login']['username']
-    password = myBot.config['login']['password']
+    user_agent = myBot.config['misc']['user-agent']
 
     print("Welcome to Reddit Analysis Bot.")
     print("Type \"quit\", \".quit\", or \'q\' to exit the program.")
     
-    login(username, password)
+    if not login(botname="bot1", user_agent=user_agent):
+        print("Failed to log in.")
+        sys.exit(1)
 
     while True:
         try:

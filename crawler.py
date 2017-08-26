@@ -35,8 +35,6 @@ class SubredditAnalysis(object):
 
         self.config.read("settings.cfg")
 
-        print(self.config.sections())
-        print(self.config["main"])
         # add terminal output
         self.verbose = self.config["main"].getboolean("verbose")
 
