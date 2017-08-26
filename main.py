@@ -51,7 +51,7 @@ def check_subreddits(subredditList):
 
                 try:
                     # make sure the subreddit is valid
-                    testSubmission = myBot.client.get_subreddit(subreddit).get_new(limit=1)
+                    testSubmission = myBot.client.subreddit(subreddit).new(limit=1)
                     for submission in testSubmission:
                         "".join(submission.title)
 
@@ -126,7 +126,7 @@ def submit_to_reddit(subreddit, content):
             sleep(60)
             continue
 
-        except (APIException, ClientException, Exception) as e:
+        except (APIException, ClientException) as e:
             myBot.add_msg(e)
             logging.error(str(e) + "\n\n")
             myBot.log_post(subreddit, content)
@@ -269,11 +269,11 @@ def main():
     while True:
         try:
             # list of subreddits you want to analyze
-            drilldownList = raw_input("Enter the subreddits you wish to target.~/> ").split()
+            drilldownList = input("Enter the subreddits you wish to target.~/> ").split()
 
         except NameError:
-            # python 3 support
-            drilldownList = input("Enter the subreddits you wish to target.~/> ").split()
+            # python 2 support
+            drilldownList = raw_input("Enter the subreddits you wish to target.~/> ").split()
 
         # check to make sure each subreddit is valid
         check_subreddits(drilldownList)

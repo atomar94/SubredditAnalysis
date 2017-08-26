@@ -132,7 +132,7 @@ class SubredditAnalysis(object):
         while True:
             try:
                 # get threads from the hot list
-                submissions = self.client.get_subreddit(subreddit).get_hot(limit=self.scrapeLimit)
+                submissions = self.client.subreddit(subreddit).hot(limit=self.scrapeLimit)
                 break
 
             except (ConnectionResetError, HTTPError, timeout) as e:
@@ -163,7 +163,7 @@ class SubredditAnalysis(object):
             while True:
                 try:
                     # load more comments
-                    submission.replace_more_comments(limit=None, threshold=0)
+                    submission.comments.replace_more(limit=None, threshold=0)
                     break
 
                 except (ConnectionResetError, HTTPError, timeout) as e:
@@ -172,7 +172,7 @@ class SubredditAnalysis(object):
 
             # get the comment authors and append
             # them to userList for scanning
-            for comment in praw.helpers.flatten_tree(submission.comments):
+            for comment in submission.comments.list():
                 try:
                     commenter = str(comment.author)
                     comScore = int(comment.score)
@@ -217,7 +217,7 @@ class SubredditAnalysis(object):
             if not(os.path.isfile("users/{0}".format(dbFile))):
                 while True:
                     try:
-                        overview = self.client.get_redditor(user).get_overview(limit=self.overviewLimit)
+                        overview = self.client.redditor(user).hot(limit=self.overviewLimit)
                         break
                     # handle shadowbanned/deleted accounts
                     except (ConnectionResetError, HTTPError, timeout) as e:
@@ -684,12 +684,13 @@ class SubredditAnalysis(object):
         targeted for the drilldown. The second is the text for
         the submission thread.
         """
-
         print("Submitting post...")
-        
+
+        if not self.config['main'].getBoolean("live"):
+            print("Submission aborted because we are not live.")
 
         # post to this subreddit
-        self.mySubreddit = self.client.get_subreddit(self.post_to)
+        self.mySubreddit = self.client.subreddit(self.post_to)
 
         if(len(self.banList) > 0):
             # thread title
@@ -719,10 +720,6 @@ class SubredditAnalysis(object):
                     self.add_msg(e)
                     continue
 
-                except ModeratorRequired as e:
-                    self.add_msg(e)
-                    logging.error("Failed to set flair. " + str(e) + '\n' + str(submission.permalink) + "\n\n")
-                    raise SkipThis("Could not assign flair. Moderator privileges are necessary.")
     
 
     def log_info(self, info):
