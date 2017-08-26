@@ -97,36 +97,25 @@ class SubredditAnalysis(object):
         newline if you want to.
         """
 
-        if(self.verbose):
-            if msg is not None:
-                print(msg)
+#        if(self.verbose):
+        if msg is not None:
+            print(msg)
 
-            if(newline):
-                print('\n')
+        if(newline):
+            print('\n')
 
 
-    def login(self, client_id, client_secret, password, user_agent, username):
+    def login(self, botname, user_agent):
         """
         This function logs the bot into its Reddit account.
         
         Return True on success.
         """
         try:
-            self.client = praw.Reddit(client_id=client_id,
-                                      client_secret=client_secret,
-                                      password=password,
-                                      user_agent=user_agent,
-                                      username=username)
-
+            self.client = praw.Reddit(botname, user_agent=user_agent)
         except (Exception) as e:
             self.add_msg("Failed to log in: " + str(e))
             return False
-
-        try:
-            if self.client.user.me() != "my_bot_username":
-                return False
-        except (Exception) as e:
-            self.add_msg("Couldn't get username.")
 
         return True
         
