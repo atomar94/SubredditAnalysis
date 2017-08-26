@@ -8,9 +8,9 @@ import sqlite3 as db
 from sqlite3 import OperationalError
 from socket import timeout
 import praw
-from praw.errors import *
+from praw.exceptions import *
 from requests.exceptions import HTTPError
-from simpleconfigparser import simpleconfigparser
+import configparser
 from exceptions import *
 
 
@@ -31,45 +31,47 @@ class SubredditAnalysis(object):
             raise SettingsError("Could not find settings.cfg.")
 
         # needed to read the settings.cfg file
-        self.config = simpleconfigparser()
+        self.config = configparser.ConfigParser()
 
         self.config.read("settings.cfg")
 
+        print(self.config.sections())
+        print(self.config["main"])
         # add terminal output
-        self.verbose = self.config.main.getboolean("verbose")
+        self.verbose = self.config["main"].getboolean("verbose")
 
         # maximum threads to crawl. Reddit doesn't
         # like it when you go over 1000
-        self.scrapeLimit = int(self.config.main.scrapeLimit)
+        self.scrapeLimit = int(self.config['main']['scrapeLimit'])
 
         # maximum amount of comments/submissions to crawl through in
         # a user's overview
-        self.overviewLimit = int(self.config.main.overviewLimit)
+        self.overviewLimit = int(self.config['main']['overviewLimit'])
 
         # don't include comments/submissions beneath this score
-        self.minScore = int(self.config.main.minScore)
+        self.minScore = int(self.config['main']['minScore'])
 
         # give drilldowns flair or not
-        self.setflair = self.config.main.getboolean("setflair")
+        self.setflair = self.config['main'].getboolean("setflair")
 
         # calculate similarity or not
-        self.similarity = self.config.main.getboolean("similarity")
+        self.similarity = self.config['main'].getboolean("similarity")
 
         # determines how many subreddits the bot calculates similarity for
-        self.similarityLimit = int(self.config.main.similarityLimit)
+        self.similarityLimit = int(self.config['main']['similarityLimit'])
 
         # sets the cap for sample size
-        self.userLimit = int(self.config.main.userLimit)
+        self.userLimit = int(self.config['main']['userLimit'])
 
         # post drilldown to this subreddit
-        self.post_to = self.config.main.post_to
+        self.post_to = self.config['main']['post_to']
 
-        self.useragent = "Reddit Analysis Bot by /u/SirNeon"
+        self.useragent = "Reddit Analysis Bot by /u/atomar94"
 
         # optional logging
-        self.infoLogging = self.config.logging.getboolean("infoLogging")
-        self.postLogging = self.config.logging.getboolean("postLogging")
-        self.errorLogging = self.config.logging.getboolean("errorLogging")
+        self.infoLogging = self.config['logging'].getboolean("infoLogging")
+        self.postLogging = self.config['logging'].getboolean("postLogging")
+        self.errorLogging = self.config['logging'].getboolean("errorLogging")
 
         # banned defaults and former defaults since
         # reddit autosubscribes users to them
@@ -81,7 +83,7 @@ class SubredditAnalysis(object):
         # list of overlapping subreddits
         self.subredditList = []
 
-        if(self.config.main.getboolean("banList")):
+        if(self.config['main'].getboolean("banList")):
             with open("banlist.txt", 'r') as f:
                 for subreddit in f.readlines():
                     subreddit = subreddit.strip('\n')
@@ -103,19 +105,31 @@ class SubredditAnalysis(object):
                 print('\n')
 
 
-    def login(self, username, password):
+    def login(self, client_id, client_secret, password, user_agent, username):
         """
         This function logs the bot into its Reddit account.
-        It takes 2 arguments: the username and the password.
-        """
-
-        self.client = praw.Reddit(user_agent=self.useragent)
-        print("Logging in as {0}...".format(username))
         
+        Return True on success.
+        """
+        try:
+            self.client = praw.Reddit(client_id=client_id,
+                                      client_secret=client_secret,
+                                      password=password,
+                                      user_agent=user_agent,
+                                      username=username)
 
-        self.client.login(username, password)
-        print("Login successful.")
+        except (Exception) as e:
+            self.add_msg("Failed to log in: " + str(e))
+            return False
 
+        try:
+            if self.client.user.me() != "my_bot_username":
+                return False
+        except (Exception) as e:
+            self.add_msg("Couldn't get username.")
+
+        return True
+        
 
     def get_users(self, subreddit):
         """

@@ -5,9 +5,9 @@ except ImportError:
 
 config = {
 	'description': 'Source code for /u/RedditAnalysisBot',
-	'author': '/u/SirNeon',
-	'url': 'https://github.com/SirNeon618/SubredditAnalysis',
-	'download_url': 'https://github.com/SirNeon618/SubredditAnalysis/archive/master.zip',
+	'author': '/u/atomar94',
+	'url': 'https://github.com/atomar94/SubredditAnalysis',
+	'download_url': 'https://github.com/atomar94/SubredditAnalysis/archive/master.zip',
 	'version': '1.1',
 	'install_requires': ['praw', 'requests', 'simpleconfigparser'],
 	'packages': [],

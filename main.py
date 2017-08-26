@@ -6,7 +6,7 @@ from sqlite3 import OperationalError
 from socket import timeout
 import sys
 from time import sleep
-from praw.errors import *
+from praw.exceptions import *
 from requests.exceptions import HTTPError
 from crawler import SubredditAnalysis
 from exceptions import *
@@ -14,26 +14,30 @@ from exceptions import *
 
 def login(username, password):
     for i in range(0, 3):
-        try:
-            myBot.login(username, password)
-            break
 
-        except (InvalidUser, InvalidUserPass, RateLimitExceeded, APIException) as e:
-                myBot.add_msg(e)
-                logging.error(str(e) + "\n\n")
-                sys.exit(1)
+            if myBot.login(client_id="SI8pN3DSbt0zor",
+                           client_secret="xaxkj7HNh8kwg8e5t4m6KvSrbTI",
+                           password="1guiwevlfo00esyy",
+                           user_agent="'testscript by /u/fakebot3",
+                           username="fakebot3"):
+                break
 
-        except (ConnectionResetError, HTTPError, timeout) as e:
-            myBot.add_msg(e)
-            logging.error(str(e) + "\n\n")
-            
+        #except (InvalidUser, InvalidUserPass, RateLimitExceeded, APIException) as e:
+        #        myBot.add_msg(e)
+        #        logging.error(str(e) + "\n\n")
+        #        sys.exit(1)
+
+        #except (ConnectionResetError, HTTPError, timeout) as e:
+        #    myBot.add_msg(e)
+        #    logging.error(str(e) + "\n\n")
+        #    
             if i == 2:
                 print("Failed to login.")
                 sys.exit(1)
             
             else:
                 # wait a minute and try again
-                sleep(60)
+                sleep(5)
                 continue
 
 
@@ -111,11 +115,11 @@ def check_subreddits(subredditList):
         
 
 def submit_to_reddit(subreddit, content):
-"""
-Given a subreddit and content, submit a post. The subreddit passed in is
-not the subreddit that this is posted to. It's used to format the title
-of the post before sending it to a predetermined sub, specified in myBot.
-"""
+    """
+    Given a subreddit and content, submit a post. The subreddit passed in is
+    not the subreddit that this is posted to. It's used to format the title
+    of the post before sending it to a predetermined sub, specified in myBot.
+    """
     post = None
 
     while True:
@@ -153,12 +157,12 @@ of the post before sending it to a predetermined sub, specified in myBot.
 
 
 def scrape_users(subreddit):
-"""
-Given a subreddit, grab the list of users from Reddit.
+    """
+    Given a subreddit, grab the list of users from Reddit.
 
-Returns userList on success.
-Returns False on fail.
-"""
+    Returns userList on success.
+    Returns False on fail.
+    """
     userList = []
     while True:
         # get the list of users
@@ -185,12 +189,12 @@ Returns False on fail.
 
 
 def store_as_db(subreddit, userList):
-"""
-Given a subreddit and userList, run the analysis and store
-the data in a database.
+    """
+    Given a subreddit and userList, run the analysis and store
+    the data in a database.
 
-Returns True on success.
-"""
+    Returns True on success.
+    """
     while True:
         try:
             # get the list of subreddits
@@ -236,11 +240,11 @@ Returns True on success.
 
 
 def fetch_from_db(subreddit):
-"""
-Grab the data from the database, if it exists.
+    """
+    Grab the data from the database, if it exists.
 
-Return userList on success, else none.
-"""
+    Return userList on success, else none.
+    """
     dbFile = "{0}.db".format(subreddit)
 
     if not os.path.isfile("subreddits/{0}".format(dbFile)):
@@ -263,8 +267,8 @@ Return userList on success, else none.
 def main():
     
     # login credentials
-    username = myBot.config.login.username
-    password = myBot.config.login.password
+    username = myBot.config['login']['username']
+    password = myBot.config['login']['password']
 
     print("Welcome to Reddit Analysis Bot.")
     print("Type \"quit\", \".quit\", or \'q\' to exit the program.")
