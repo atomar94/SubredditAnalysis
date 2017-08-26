@@ -14,7 +14,7 @@ import configparser
 from exceptions import *
 
 
-class SubredditAnalysis(object):
+class Crawler(object):
 
 
     def __init__(self):
@@ -686,7 +686,7 @@ class SubredditAnalysis(object):
         """
         print("Submitting post...")
 
-        if not self.config['main'].getBoolean("live"):
+        if self.config['main']['live'] != "on":
             print("Submission aborted because we are not live.")
 
         # post to this subreddit
