@@ -110,6 +110,156 @@ def check_subreddits(subredditList):
         print("Subreddit List empty.")
         
 
+def submit_to_reddit(subreddit, content):
+"""
+Given a subreddit and content, submit a post. The subreddit passed in is
+not the subreddit that this is posted to. It's used to format the title
+of the post before sending it to a predetermined sub, specified in myBot.
+"""
+    post = None
+
+    while True:
+        try:
+            # submit the post for Reddit
+            post = myBot.submit_post(subreddit, content)
+            break
+
+        except (ConnectionResetError, HTTPError, timeout) as e:
+            myBot.add_msg(e)
+            logging.error(str(e) + "\n\n")
+            myBot.add_msg("Waiting to try again...")
+            sleep(60)
+            continue
+
+        except (APIException, ClientException, Exception) as e:
+            myBot.add_msg(e)
+            logging.error(str(e) + "\n\n")
+            myBot.log_post(subreddit, content)
+            break
+
+    if(post):
+        try:
+            print("Setting post's flair...")
+            
+            myBot.give_flair(post, subreddit)
+
+        except ModeratorRequired as e:
+            myBot.add_msg(e)
+            logging.error("Failed to set flair. " + str(e) + '\n' + str(post.permalink) + "\n\n")
+
+        except (APIException, ClientException, Exception) as e:
+            myBot.add_msg(e)
+            logging.error(str(e) + "\n\n")
+
+
+def scrape_users(subreddit):
+"""
+Given a subreddit, grab the list of users from Reddit.
+
+Returns userList on success.
+Returns False on fail.
+"""
+    userList = []
+    while True:
+        # get the list of users
+        try:
+            userList = myBot.get_users(subreddit)
+            myBot.userList = []
+            break
+
+        except (InvalidSubreddit, RedirectException) as e:
+            myBot.add_msg(e)
+            logging.error("Invalid subreddit." + str(e) + "\n\n")
+            return False
+
+        except (APIException, ClientException, Exception) as e:
+            myBot.add_msg(e)
+            logging.error(str(e) + "\n\n")
+            return False
+
+    for user in userList:
+        myBot.log_info(user + ',')
+    myBot.log_info("\n\n")
+
+    return userList
+
+
+def store_as_db(subreddit, userList):
+"""
+Given a subreddit and userList, run the analysis and store
+the data in a database.
+
+Returns True on success.
+"""
+    while True:
+        try:
+            # get the list of subreddits
+            subredditList = myBot.get_subs(userList)
+            myBot.subredditList = []
+            break
+
+        except (APIException, ClientException, OperationalError) as e:
+            myBot.add_msg(e)
+            logging.error(str(e) + "\n\n")
+            return False
+
+    for sub in subredditList:
+        myBot.log_info(sub + ',')
+    myBot.log_info("\n\n")
+
+
+    try:
+        # get the list of tuples
+        subredditTuple = myBot.create_tuples(subreddit, subredditList)
+
+        for item in subredditTuple:
+            myBot.log_info(item)
+            myBot.log_info(',')
+
+        myBot.log_info("\n\n")
+
+    except Exception as e:
+        myBot.add_msg(e)
+        logging.error("Failed to create tuples. " + str(e) + "\n\n")
+        return False
+
+    try:
+        myBot.add_db(subreddit, subredditTuple, len(userList))
+
+    except Exception as e:
+        myBot.add_msg(e)
+        logging.error("Failed to add to database. " + str(e) + "\n\n")
+        return False
+
+    return True
+
+
+
+def fetch_from_db(subreddit):
+"""
+Grab the data from the database, if it exists.
+
+Return userList on success, else none.
+"""
+    dbFile = "{0}.db".format(subreddit)
+
+    if not os.path.isfile("subreddits/{0}".format(dbFile)):
+        return None
+
+    con = db.connect("subreddits/{0}".format(dbFile))
+    cur = con.cursor()
+
+    sub = (subreddit,)
+
+    cur.execute("SELECT users FROM drilldown WHERE overlaps=?", sub)
+
+    for element in cur:
+        userList = operator.getitem(element, 0)
+
+    con.close()
+
+    return userList
+
 def main():
     
     # login credentials
@@ -136,203 +286,22 @@ def main():
         # iterate through the drilldownList to get data
         for subreddit in drilldownList:
 
-            # check to see if a drilldown for this subreddit
-            # was already done
-            dbFile = "{0}.db".format(subreddit)
-
             if(subreddit in ["quit", ".quit", 'q']):
                 print("Quitting...")
                 
                 sys.exit(0)
 
-            elif(os.path.isfile("subreddits/{0}".format(dbFile))):
-                con = db.connect("subreddits/{0}".format(dbFile))
-                cur = con.cursor()
+            # check to see if a drilldown for this subreddit
+            # was already done
+            userList = fetch_from_db(subreddit)
+            if not userList:
+                    userList = scrape_users(subreddit)
+                    store_as_db(subreddit, userList)
 
-                sub = (subreddit,)
+            # format the data for Reddit
+            original_content = myBot.format_post(subreddit, userList)
 
-                cur.execute("SELECT users FROM drilldown WHERE overlaps=?", sub)
-
-                for element in cur:
-                    userList = operator.getitem(element, 0)
-
-                try:
-                    # format the data for Reddit
-                    text = myBot.format_post(subreddit, userList)
-                
-                except Exception as e:
-                    myBot.add_msg(e)
-                    logging.error("Failed to format post. " + str(e) + "\n\n")
-                    continue
-
-                try:
-                    while True:
-                        try:
-                            # submit the post for Reddit
-                            post = myBot.submit_post(subreddit, text)
-                            break
-
-                        except (ConnectionResetError, HTTPError, timeout) as e:
-                            myBot.add_msg(e)
-                            logging.error(str(e) + "\n\n")
-                            myBot.add_msg("Waiting to try again...")
-                            sleep(60)
-                            continue
-
-                        except (APIException, ClientException, Exception) as e:
-                            myBot.add_msg(e)
-                            logging.error(str(e) + "\n\n")
-                            raise SkipThis("Something went wrong. Skipping...")
-
-                except SkipThis:
-                    logging.error(str(e) + "\n\n")
-                    myBot.log_post(subreddit, text)
-                    continue
-
-                if(post != None):
-                    try:
-
-                        try:
-                            myBot.give_flair(post, subreddit)
-
-                        except (APIException, ClientException, Exception) as e:
-                            myBot.add_msg(e)
-                            logging.error(str(e) + "\n\n")
-                            raise SkipThis("Couldn't flair post. Skipping...")
-
-                    except SkipThis:
-                        continue
-
-                con.close()
-                continue
-
-            else:
-                try:
-                    while True:
-                        # get the list of users
-                        try:
-                            userList = myBot.get_users(subreddit)
-                            myBot.userList = []
-                            break
-
-                        except (InvalidSubreddit, RedirectException) as e:
-                            myBot.add_msg(e)
-                            logging.error("Invalid subreddit. Removing from list." + str(e) + "\n\n")
-                            drilldownList.remove(subreddit)
-                            raise SkipThis("Skipping invalid subreddit...")
-
-                        except (APIException, ClientException, Exception) as e:
-                            myBot.add_msg(e)
-                            logging.error(str(e) + "\n\n")
-                            raise SkipThis("Couldn't get users. Skipping...")
-
-                except SkipThis:
-                    continue
-
-                for user in userList:
-                    myBot.log_info(user + ',')
-
-                myBot.log_info("\n\n")
-
-
-                try:
-                    while True:
-                        try:
-                            # get the list of subreddits
-                            subredditList = myBot.get_subs(userList)
-                            myBot.subredditList = []
-                            break
-
-                        except (APIException, ClientException, OperationalError) as e:
-                            myBot.add_msg(e)
-                            logging.error(str(e) + "\n\n")
-                            raise SkipThis("Couldn't get overlapping subreddits. Skipping...")
-
-                except SkipThis:
-                    continue
-
-                for sub in subredditList:
-                    myBot.log_info(sub + ',')
-
-                myBot.log_info("\n\n")
-
-
-                try:
-                    # get the list of tuples
-                    subredditTuple = myBot.create_tuples(subreddit, subredditList)
-
-                    for item in subredditTuple:
-                        myBot.log_info(item)
-                        myBot.log_info(',')
-
-                    myBot.log_info("\n\n")
-
-                except Exception as e:
-                    myBot.add_msg(e)
-                    logging.error("Failed to create tuples. " + str(e) + "\n\n")
-                    continue
-
-                try:
-                    myBot.add_db(subreddit, subredditTuple, len(userList))
-
-                except Exception as e:
-                    myBot.add_msg(e)
-                    logging.error("Failed to add to database. " + str(e) + "\n\n")
-                    continue
-
-                try:
-                    # format the data for Reddit
-                    text = myBot.format_post(subreddit, userList)
-                
-                except Exception as e:
-                    myBot.add_msg(e)
-                    logging.error("Failed to format post. " + str(e) + "\n\n")
-                    continue
-
-
-                try:
-                    while True:
-                        try:
-                            # submit the post for Reddit
-                            post = myBot.submit_post(subreddit, text)
-                            break
-
-                        except (ConnectionResetError, HTTPError, timeout) as e:
-                            myBot.add_msg(e)
-                            logging.error(str(e) + "\n\n")
-                            myBot.add_msg("Waiting to try again...")
-                            sleep(60)
-                            continue
-
-                        except (APIException, ClientException, Exception) as e:
-                            myBot.add_msg(e)
-                            logging.error(str(e) + "\n\n")
-                            raise SkipThis("Couldn't submit post. Skipping...")
-
-                except SkipThis:
-                    logging.error(str(e) + "\n\n")
-                    myBot.log_post(subreddit, text)
-                    continue
-
-                if(post != None):
-                    try:
-                        try:
-                            print("Setting post's flair...")
-                            
-                            myBot.give_flair(post, subreddit)
-
-                        except ModeratorRequired as e:
-                            myBot.add_msg(e)
-                            logging.error("Failed to set flair. " + str(e) + '\n' + str(post.permalink) + "\n\n")
-                            raise SkipThis("Need moderator privileges to set flair. Skipping...")
-
-                        except (APIException, ClientException, Exception) as e:
-                            myBot.add_msg(e)
-                            logging.error(str(e) + "\n\n")
-                            raise SkipThis("Couldn't set flair. Skipping...")
-
-                    except SkipThis:
-                        continue
+            submit_to_reddit(subreddit, original_content)
 
 
 if __name__ == "__main__":
