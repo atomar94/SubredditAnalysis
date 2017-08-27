@@ -10,9 +10,13 @@ from praw.exceptions import *
 from requests.exceptions import HTTPError
 from analyzer import Analyzer
 from exceptions import *
+from polls import Poll
 
 
 if __name__ == "__main__":
+    mypoll = Poll("10915164")
     analyzer = Analyzer()
-    analyzer.start_analysis()
-
+    #for sub in mypoll.top():
+    #    analyzer.start_analysis(sub)
+    for sub in ["learnpython", "asoiaf"]:
+        analyzer.start_analysis(sub)

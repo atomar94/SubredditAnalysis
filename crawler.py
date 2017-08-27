@@ -598,9 +598,6 @@ class Crawler(object):
         discovered by the bot. It returns the formatted string.
         """
 
-        print("Formatting post...")
-        
-
         # similarity values will be stored here for sorting
         self.simList = []
 
@@ -688,6 +685,7 @@ class Crawler(object):
 
         if self.config['main']['live'] != "on":
             print("Submission aborted because we are not live.")
+            return
 
         # post to this subreddit
         self.mySubreddit = self.client.subreddit(self.post_to)

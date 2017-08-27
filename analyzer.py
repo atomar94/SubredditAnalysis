@@ -34,70 +34,50 @@ class Analyzer(object):
         return False
 
 
-    def check_subreddits(self, subredditList):
+    def check_subreddit(self, subreddit):
         """
         Checks on the listed subreddits to make sure that they are 
         valid subreddits and that there's no typos and whatnot. This 
         function removes the bad subreddits from the list so the bot 
         can carry on with its task. Feed it the list of subreddits.
-
         """
 
         for i in range(0, 3):
-            for subreddit in subredditList:
-                if(subreddit in ["quit", ".quit", 'q']):
-                    continue
+            print("Verifying /r/{0}...".format(subreddit))
+            
+            try:
+                # make sure the subreddit is valid
+                testSubmission = self.myBot.client.subreddit(subreddit).new(limit=1)
+                print("Subreddit verified!")
+                return True 
 
-                print("Verifying /r/{0}...".format(subreddit))
-                
+            except (InvalidSubreddit, RedirectException) as e:
+                self.myBot.add_msg(e)
+                logging.error("Invalid subreddit." + str(e) + "\n\n")
 
-                try:
-                    # make sure the subreddit is valid
-                    testSubmission = self.myBot.client.subreddit(subreddit).new(limit=1)
-                    for submission in testSubmission:
-                        "".join(submission.title)
+            except (ConnectionResetError, HTTPError, timeout) as e:
+                self.myBot.add_msg(e)
+                logging.error(str(subreddit) + ' ' + str(e) + "\n\n")
 
-                except (InvalidSubreddit, RedirectException) as e:
-                    self.myBot.add_msg(e)
-                    logging.error("Invalid subreddit. Removing from list." + str(e) + "\n\n")
-                    subredditList.remove(subreddit)
-                    continue
+                # private subreddits return a 403 error
+                if "403" in str(e):
+                    self.myBot.add_msg("/r/{0} is private.".format(subreddit))
 
-                except (ConnectionResetError, HTTPError, timeout) as e:
-                    self.myBot.add_msg(e)
-                    logging.error(str(subreddit) + ' ' + str(e) + "\n\n")
+                # banned subreddits return a 404 error
+                if "404" in str(e):
+                    self.myBot.add_msg("/r/{0} banned.".format(subreddit))
 
-                    # private subreddits return a 403 error
-                    if "403" in str(e):
-                        self.myBot.add_msg("/r/{0} is private. Removing from list...".format(subreddit))
-                        subredditList.remove(subreddit)
-                        continue
 
-                    # banned subreddits return a 404 error
-                    if "404" in str(e):
-                        self.myBot.add_msg("/r/{0} banned. Removing from list...".format(subreddit))
-                        subredditList.remove(subreddit)
-                        continue
+                self.myBot.add_msg("Waiting a minute to try again...")   
+                sleep(60)
 
-                    self.myBot.add_msg("Waiting a minute to try again...")   
-                    sleep(60)
-                    continue
+            except (APIException, ClientException, Exception) as e:
+                self.myBot.add_msg(e)
+                logging.error(str(e) + "\n\n")
 
-                except (APIException, ClientException, Exception) as e:
-                    self.myBot.add_msg(e)
-                    logging.error(str(e) + "\n\n")
-                    continue
+        print("Subreddit verification failed.")
+        return False
 
-            break
-
-        try:
-            # keeps this message from being displayed when
-            # the only item is a quit command
-            if subredditList[0] not in ["quit", ".quit", 'q']:
-                print("Subreddit verification completed.")
-
-        except IndexError:
-            print("Subreddit List empty.")
             
 
     def submit_to_reddit(self, subreddit, content):
@@ -126,20 +106,6 @@ class Analyzer(object):
                 logging.error(str(e) + "\n\n")
                 self.myBot.log_post(subreddit, content)
                 break
-
-        if(post):
-            try:
-                print("Setting post's flair...")
-                
-                self.myBot.give_flair(post, subreddit)
-
-            except ModeratorRequired as e:
-                self.myBot.add_msg(e)
-                logging.error("Failed to set flair. " + str(e) + '\n' + str(post.permalink) + "\n\n")
-
-            except (APIException, ClientException, Exception) as e:
-                self.myBot.add_msg(e)
-                logging.error(str(e) + "\n\n")
 
 
     def scrape_users(self, subreddit):
@@ -250,7 +216,7 @@ class Analyzer(object):
         return userList
 
 
-    def start_analysis(self):
+    def start_analysis(self, subreddit):
         
         self.myBot = Crawler()
 
@@ -260,48 +226,27 @@ class Analyzer(object):
                 filemode='a', format="%(asctime)s\nIn "
                 "%(filename)s (%(funcName)s:%(lineno)s): "
                 "%(message)s", datefmt="%Y-%m-%d %H:%M:%S", 
-                level=logging.ERROR
-            )
-
+                level=logging.ERROR)
 
         user_agent = self.myBot.config['misc']['user-agent']
-
-        print("Welcome to Reddit Analysis Bot.")
-        print("Type \"quit\", \".quit\", or \'q\' to exit the program.")
         
         if not self.login(botname="bot1", user_agent=user_agent):
             print("Failed to log in.")
             sys.exit(1)
 
-        while True:
-            try:
-                # list of subreddits you want to analyze
-                drilldownList = input("Enter the subreddits you wish to target.~/> ").split()
+        # check to make sure each subreddit is valid
+        if not self.check_subreddit(subreddit):
+            return False
 
-            except NameError:
-                # python 2 support
-                drilldownList = raw_input("Enter the subreddits you wish to target.~/> ").split()
+        # check to see if a drilldown for this subreddit
+        # was already done
+        userList = self.fetch_from_db(subreddit)
+        if not userList:
+                userList = self.scrape_users(subreddit)
+                self.store_as_db(subreddit, userList)
 
-            # check to make sure each subreddit is valid
-            self.check_subreddits(drilldownList)
+        # format the data for Reddit
+        original_content = self.myBot.format_post(subreddit, userList)
 
-            # iterate through the drilldownList to get data
-            for subreddit in drilldownList:
-
-                if(subreddit in ["quit", ".quit", 'q']):
-                    print("Quitting...")
-                    
-                    sys.exit(0)
-
-                # check to see if a drilldown for this subreddit
-                # was already done
-                userList = self.fetch_from_db(subreddit)
-                if not userList:
-                        userList = self.scrape_users(subreddit)
-                        self.store_as_db(subreddit, userList)
-
-                # format the data for Reddit
-                original_content = self.myBot.format_post(subreddit, userList)
-
-                self.submit_to_reddit(subreddit, original_content)
+        self.submit_to_reddit(subreddit, original_content)
 
